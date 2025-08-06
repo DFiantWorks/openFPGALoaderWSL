@@ -145,22 +145,22 @@ if defined args (
 )
 
 REM Call the WSL script with the converted arguments
-if "!is_file_path!"=="true" (
-    echo Converting Windows path to WSL path...
-    echo Original last argument: %last_arg%
-    echo Converted last argument: !last_arg!
-) else (
-    echo Last argument does not appear to be a file path, passing as-is...
-    echo Last argument: !last_arg!
-)
+@REM if "!is_file_path!"=="true" (
+@REM     echo Converting Windows path to WSL path...
+@REM     echo Original last argument: %last_arg%
+@REM     echo Converted last argument: !last_arg!
+@REM ) else (
+@REM     echo Last argument does not appear to be a file path, passing as-is...
+@REM     echo Last argument: !last_arg!
+@REM )
 echo.
 
-wsl ~/openFPGALoader.sh !final_args!
+wsl ~/openFPGALoaderWin/openFPGALoader.sh !final_args!
 
 REM Check the exit code from WSL
-if %errorlevel% neq 0 (
-    echo Error: openFPGALoader failed with exit code %errorlevel%
-    exit /b %errorlevel%
-)
+@REM if %errorlevel% neq 0 (
+@REM     echo Error: openFPGALoader failed with exit code %errorlevel%
+@REM     exit /b %errorlevel%
+@REM )
 
-echo openFPGALoader completed successfully. 
+@REM echo openFPGALoader completed successfully. 
