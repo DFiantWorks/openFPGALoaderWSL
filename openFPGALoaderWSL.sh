@@ -48,21 +48,6 @@ print_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
-# Function to check if usbipd is available
-check_usbipd() {
-    # Try to run usbipd list to check if it's available
-    local output
-    output=$(powershell.exe -Command "usbipd list" 2>&1)
-    local exit_code=$?
-    
-    if [ $exit_code -ne 0 ] || echo "$output" | grep -q "not recognized"; then
-        print_error "usbipd command not found or not working."
-        print_error "Please install usbipd-win on Windows:"
-        print_error "Installation instructions: https://learn.microsoft.com/en-us/windows/wsl/connect-usb#install-the-usbipd-win-project"
-        exit 1
-    fi
-}
-
 # Function to read supported VID:PID combinations from cables.list
 read_supported_cables() {
     if [ ! -f "$CABLES_LIST_FILE" ]; then
@@ -102,8 +87,8 @@ find_fpga_cables() {
     
     if [ $exit_code -ne 0 ] || echo "$device_list" | grep -q "not recognized"; then
         print_error "usbipd command not found or not working"
-        print_error "Please install usbipd-win on Windows:"
-        print_error "Installation instructions: https://learn.microsoft.com/en-us/windows/wsl/connect-usb#install-the-usbipd-win-project"
+        print_error "Please install usbipd-win on Windows by running:"
+        print_error "winget install --interactive --exact dorssel.usbipd-win"
         return 1
     fi
     
@@ -252,7 +237,7 @@ attach_all_cables() {
             print_error "Cable (Bus ID: $busid) is not shared and needs to be bound first"
             print_error "Please run the following command in an elevated (admin) PowerShell console:"
             print_error "  usbipd bind --busid $busid"
-            print_error "Then run this script again"
+            print_error "Then retry running openFPGALoaderWSL."
             return 1
         else
             # Attach the cable to WSL
@@ -319,9 +304,6 @@ main() {
                 ;;
         esac
     done
-    
-    # Check if usbipd is available
-    check_usbipd
     
     # Read supported cables from cables.list
     read_supported_cables
