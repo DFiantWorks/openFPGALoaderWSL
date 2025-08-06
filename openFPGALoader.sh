@@ -294,6 +294,17 @@ main() {
         exit 1
     fi
     
+    # Check if arguments are for help or version
+    for arg in "$@"; do
+        case "$arg" in
+            -h|--help|-V|--version)
+                print_status "Help/version requested, skipping cable operations"
+                run_openfpgaloader "$@"
+                exit $?
+                ;;
+        esac
+    done
+    
     # Check if usbipd is available
     check_usbipd
     
