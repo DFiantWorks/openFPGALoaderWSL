@@ -1,10 +1,11 @@
 #!/bin/bash
 
 # WSL wrapper for openFPGALoader with USB device management
-# This script handles Digilent USB device attachment/detachment
+# This script handles FPGA programming cable attachment/detachment for all supported cables
 
 # Configuration
-DIGILENT_DEVICE_NAME="Digilent USB Device"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CABLES_LIST_FILE="$SCRIPT_DIR/cables.list"
 
 # Colors for output
 RED='\033[0;31m'
@@ -47,9 +48,37 @@ check_usbipd() {
     fi
 }
 
-# Function to find Digilent device bus ID and extract VID:PID
-find_digilent_device() {
-    print_status "Searching for Digilent USB device..."
+# Function to read supported VID:PID combinations from cables.list
+read_supported_cables() {
+    if [ ! -f "$CABLES_LIST_FILE" ]; then
+        print_error "Cables list file not found: $CABLES_LIST_FILE"
+        return 1
+    fi
+    
+    # Read all non-empty lines from cables.list
+    SUPPORTED_CABLES=()
+    while IFS= read -r line; do
+        # Skip empty lines and comments
+        if [[ -n "$line" && ! "$line" =~ ^[[:space:]]*# ]]; then
+            # Remove any whitespace and carriage returns
+            line=$(echo "$line" | tr -d '\r' | xargs)
+            if [[ -n "$line" ]]; then
+                SUPPORTED_CABLES+=("$line")
+            fi
+        fi
+    done < "$CABLES_LIST_FILE"
+    
+    if [ ${#SUPPORTED_CABLES[@]} -eq 0 ]; then
+        print_error "No supported cables found in $CABLES_LIST_FILE"
+        return 1
+    fi
+    
+    print_status "Loaded ${#SUPPORTED_CABLES[@]} supported cable types from $CABLES_LIST_FILE"
+}
+
+# Function to find FPGA programming cables matching supported cables
+find_fpga_cables() {
+    print_status "Searching for FPGA programming cables..."
     
     # Get device list from Windows
     local device_list
@@ -77,83 +106,157 @@ find_digilent_device() {
         return 1
     fi
     
-    # Extract the line containing Digilent device from Connected section only
-    local digilent_line
-    digilent_line=$(echo "$connected_section" | grep "$DIGILENT_DEVICE_NAME" | head -1)
+    # Find cables that match any of our supported VID:PID combinations
+    FOUND_CABLES=()
+    local cable_count=0
     
-    if [ -z "$digilent_line" ]; then
-        print_error "Digilent USB device not found in connected devices"
-        print_error "Please ensure the Digilent device is connected."
+    # Parse the device list using column positions from header
+    local parsed_devices
+    parsed_devices=$(echo "$device_list" | awk '
+    /^Connected:/ { in_connected=1; next }
+    /^Persisted:/ { in_connected=0 }
+    in_connected && /^BUSID/ { 
+        # Save column positions from header
+        busid_start = index($0, "BUSID")
+        vidpid_start = index($0, "VID:PID")
+        device_start = index($0, "DEVICE")
+        state_start = index($0, "STATE")
+        next
+    }
+    in_connected && NF && /^[0-9]*-[0-9]*/ {
+        # Extract using substr based on positions
+        busid = substr($0, busid_start, vidpid_start - busid_start)
+        vidpid = substr($0, vidpid_start, device_start - vidpid_start)
+        device = substr($0, device_start, state_start - device_start)
+        state = substr($0, state_start)
+        
+        # Remove leading/trailing whitespace and carriage returns
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", busid)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", vidpid)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", device)
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "", state)
+        gsub(/\r/, "", state)
+        
+        printf "%s|%s|%s\n", busid, vidpid, state
+    }')
+    
+    # Process each parsed device
+    while IFS='|' read -r busid device_vid_pid state; do
+        if [ -n "$busid" ] && [ -n "$device_vid_pid" ] && [ -n "$state" ]; then
+            # Check if this VID:PID matches any of our supported cables
+            for vid_pid in "${SUPPORTED_CABLES[@]}"; do
+                if [ "$device_vid_pid" = "$vid_pid" ]; then
+                    FOUND_CABLES+=("$busid|$device_vid_pid|$state")
+                    cable_count=$((cable_count + 1))
+                    print_success "Found FPGA programming cable: Bus ID: $busid, VID:PID: $device_vid_pid, STATE: $state"
+                    break
+                fi
+            done
+        fi
+    done <<< "$parsed_devices"
+    
+    if [ $cable_count -eq 0 ]; then
+        print_error "No FPGA programming cables found matching supported cable types"
+        print_error "Please ensure an FPGA programming cable is connected."
         return 1
     fi
     
-    # Check if this line has a bus ID format (contains digits-digits)
-    if ! echo "$digilent_line" | grep -q "^[0-9]*-[0-9]*"; then
-        print_error "Digilent device found but not in expected bus ID format: $digilent_line"
-        return 1
-    fi
-    
-    # Extract bus ID (first column)
-    local busid
-    busid=$(echo "$digilent_line" | awk '{print $1}')
+    print_success "Found $cable_count FPGA programming cable(s)"
+}
 
-    # Extract VID:PID (second column)
-    local vid_pid
-    vid_pid=$(echo "$digilent_line" | awk '{print $2}')
+# Function to parse cable info from cable string
+parse_cable_info() {
+    local cable_info="$1"
     
-    # Extract STATE (last column) and remove carriage returns
-    local state
-    state=$(echo "$digilent_line" | awk '{print $NF}' | tr -d '\r')
+    # Parse cable info (busid|vid_pid|state)
+    local busid=$(echo "$cable_info" | cut -d'|' -f1)
+    local vid_pid=$(echo "$cable_info" | cut -d'|' -f2)
+    local state=$(echo "$cable_info" | cut -d'|' -f3)
     
     # Split VID:PID into separate variables
-    local vid
-    local pid
-    vid=$(echo "$vid_pid" | cut -d: -f1)
-    pid=$(echo "$vid_pid" | cut -d: -f2)
+    local vid=$(echo "$vid_pid" | cut -d: -f1)
+    local pid=$(echo "$vid_pid" | cut -d: -f2)
     
-    if [ -z "$vid" ] || [ -z "$pid" ]; then
-        print_error "Failed to extract VID:PID from device line: $digilent_line"
+    if [ -z "$busid" ] || [ -z "$vid" ] || [ -z "$pid" ]; then
+        print_error "Failed to parse cable information: $cable_info"
         return 1
     fi
     
-    print_success "Found Digilent device with bus ID: $busid, VID:PID: $vid:$pid, STATE: $state"
-    
-    # Store BUSID, VID, PID and STATE in global variables for use by other functions
-    BUSID="$busid"
-    DIGILENT_VID="$vid"
-    DIGILENT_PID="$pid"
-    DEVICE_STATE="$state"
+    echo "$busid|$vid:$pid|$state"
 }
 
 # Function to attach USB device to WSL
 attach_usb_device() {
-    
-    print_status "Attaching USB device to WSL..."
+    local busid="$1"
+    print_status "Attaching USB device (Bus ID: $busid) to WSL..."
     
     # Attach the device to WSL
-    powershell.exe -Command "usbipd attach --wsl --busid $BUSID" 2>/dev/null
+    powershell.exe -Command "usbipd attach --wsl --busid $busid" 2>/dev/null
 
     if [ $? -ne 0 ]; then
-        print_error "Failed to attach USB device to WSL"
+        print_error "Failed to attach USB device (Bus ID: $busid) to WSL"
         return 1
     fi
     
-    print_success "USB device attached to WSL"
+    print_success "USB device (Bus ID: $busid) attached to WSL"
 }
 
 # Function to detach USB device
 detach_usb_device() {
-    
-    if [ -n "$BUSID" ]; then
-        print_status "Detaching USB device..."
-        powershell.exe -Command "usbipd detach --busid $BUSID" 2>/dev/null
+    local busid="$1"
+    if [ -n "$busid" ]; then
+        print_status "Detaching USB device (Bus ID: $busid)..."
+        powershell.exe -Command "usbipd detach --busid $busid" 2>/dev/null
         
         if [ $? -eq 0 ]; then
-            print_success "USB device detached successfully"
+            print_success "USB device (Bus ID: $busid) detached successfully"
         else
-            print_warning "Failed to detach USB device (it may have been disconnected manually)"
+            print_warning "Failed to detach USB device (Bus ID: $busid) (it may have been disconnected manually)"
         fi
     fi
+}
+
+# Function to attach all found cables
+attach_all_cables() {
+    local attached_cables=()
+    
+    for cable_info in "${FOUND_CABLES[@]}"; do
+        local parsed_info
+        parsed_info=$(parse_cable_info "$cable_info")
+        if [ $? -ne 0 ]; then
+            continue
+        fi
+        
+        local busid=$(echo "$parsed_info" | cut -d'|' -f1)
+        local state=$(echo "$parsed_info" | cut -d'|' -f3)
+
+        if [ "$state" = "Attached" ]; then
+            print_status "Cable (Bus ID: $busid) is already attached to WSL, skipping attachment"
+            attached_cables+=("$busid")
+        elif [ "$state" = "Not shared" ]; then
+            print_error "Cable (Bus ID: $busid) is not shared and needs to be bound first"
+            print_error "Please run the following command in an elevated (admin) PowerShell console:"
+            print_error "  usbipd bind --busid $busid"
+            print_error "Then run this script again"
+            return 1
+        else
+            # Attach the cable to WSL
+            attach_usb_device "$busid"
+            if [ $? -eq 0 ]; then
+                attached_cables+=("$busid")
+            fi
+        fi
+    done
+    
+    # Store attached cables for later detachment
+    ATTACHED_CABLES=("${attached_cables[@]}")
+}
+
+# Function to detach all attached cables
+detach_all_cables() {
+    for busid in "${ATTACHED_CABLES[@]}"; do
+        detach_usb_device "$busid"
+    done
 }
 
 # Function to run openFPGALoader
@@ -190,50 +293,45 @@ main() {
         echo "Example: $0 -b arty-a7-35t /mnt/c/path/to/bitstream.bit"
         exit 1
     fi
+    
     # Check if usbipd is available
     check_usbipd
     
-    local busid=""
+    # Read supported cables from cables.list
+    read_supported_cables
+    if [ $? -ne 0 ]; then
+        exit 1
+    fi
+    
     local exit_code=0
     
-    # Find and manage USB device
-    find_digilent_device
+    # Find FPGA programming cables
+    find_fpga_cables
+    if [ $? -ne 0 ]; then
+        exit 1
+    fi
+    
+    # Attach all found cables
+    attach_all_cables
     if [ $? -ne 0 ]; then
         exit 1
     fi
 
-    # Check device state and handle accordingly
-    if [ "$DEVICE_STATE" = "Attached" ]; then
-        print_status "Device is already attached to WSL, skipping binding and attachment"
-    elif [ "$DEVICE_STATE" = "Not shared" ]; then
-        print_error "Device is not shared and needs to be bound first"
-        print_error "Please run the following command in an elevated (admin) PowerShell console:"
-        print_error "  usbipd bind --busid $BUSID"
-        print_error "Then run this script again"
-        exit 1
-    else
-        # Attach the device to WSL
-        attach_usb_device
-        if [ $? -ne 0 ]; then
-            exit 1
-        fi
-        
-        # Wait for device to be ready
-        sleep 0.5
-    fi
+    # Wait for cables to be ready
+    sleep 0.5
     
     # Run openFPGALoader
     run_openfpgaloader "$@"
     exit_code=$?
     
-    # Always try to detach the device
-    detach_usb_device
+    # Always try to detach all cables
+    detach_all_cables
     trap - EXIT
     exit $exit_code
 }
 
-# Trap to ensure device is detached on script exit
-trap 'if [ -n "$BUSID" ]; then detach_usb_device; fi' EXIT
+# Trap to ensure all cables are detached on script exit
+trap 'if [ ${#ATTACHED_CABLES[@]} -gt 0 ]; then detach_all_cables; fi' EXIT
 
 # Run main function with all arguments
 main "$@" 
