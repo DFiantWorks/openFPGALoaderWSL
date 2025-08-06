@@ -11,6 +11,15 @@ if "%~1"=="" (
     exit /b 1
 )
 
+REM Get the current Windows directory
+for /f "tokens=*" %%d in ('cd') do set "current_dir=%%d"
+
+REM Get the batch file's directory and convert to WSL path using wslpath
+for /f "tokens=*" %%p in ('wsl -e wslpath "%~dp0"') do set "batch_dir=%%p"
+set "batch_dir=!batch_dir:"=!"
+REM Remove trailing slash from batch_dir if it exists
+if "!batch_dir:~-1!"=="/" set "batch_dir=!batch_dir:~0,-1!"
+
 REM Build the argument string, converting the last argument (file path) to WSL format
 set "args="
 set "last_arg="
@@ -64,67 +73,20 @@ for %%a in (%*) do (
             REM Check if it's a drive letter path (absolute Windows path)
             echo !last_arg! | findstr /r "^[A-Za-z]:" >nul
             if !errorlevel! equ 0 (
-                REM Convert Windows absolute path to WSL path
-                set "last_arg=!last_arg:\=/!"
-                set "last_arg=!last_arg:C:=/mnt/c!"
-                set "last_arg=!last_arg:D:=/mnt/d!"
-                set "last_arg=!last_arg:E:=/mnt/e!"
-                set "last_arg=!last_arg:F:=/mnt/f!"
-                set "last_arg=!last_arg:G:=/mnt/g!"
-                set "last_arg=!last_arg:H:=/mnt/h!"
-                set "last_arg=!last_arg:I:=/mnt/i!"
-                set "last_arg=!last_arg:J:=/mnt/j!"
-                set "last_arg=!last_arg:K:=/mnt/k!"
-                set "last_arg=!last_arg:L:=/mnt/l!"
-                set "last_arg=!last_arg:M:=/mnt/m!"
-                set "last_arg=!last_arg:N:=/mnt/n!"
-                set "last_arg=!last_arg:O:=/mnt/o!"
-                set "last_arg=!last_arg:P:=/mnt/p!"
-                set "last_arg=!last_arg:Q:=/mnt/q!"
-                set "last_arg=!last_arg:R:=/mnt/r!"
-                set "last_arg=!last_arg:S:=/mnt/s!"
-                set "last_arg=!last_arg:T:=/mnt/t!"
-                set "last_arg=!last_arg:U:=/mnt/u!"
-                set "last_arg=!last_arg:V:=/mnt/v!"
-                set "last_arg=!last_arg:W:=/mnt/w!"
-                set "last_arg=!last_arg:X:=/mnt/x!"
-                set "last_arg=!last_arg:Y:=/mnt/y!"
-                set "last_arg=!last_arg:Z:=/mnt/z!"
+                REM Convert Windows absolute path to WSL path using wslpath
+                for /f "tokens=*" %%p in ('wsl -e wslpath "!last_arg!"') do set "last_arg=%%p"
+                set "last_arg=!last_arg:"=!"
             ) else (
                 REM For relative paths or just filenames, convert to absolute WSL path
-                REM Get current Windows directory and convert to WSL path
-                for /f "tokens=*" %%d in ('cd') do set "current_dir=%%d"
-                set "current_dir=!current_dir:\=/!"
-                set "current_dir=!current_dir:C:=/mnt/c!"
-                set "current_dir=!current_dir:D:=/mnt/d!"
-                set "current_dir=!current_dir:E:=/mnt/e!"
-                set "current_dir=!current_dir:F:=/mnt/f!"
-                set "current_dir=!current_dir:G:=/mnt/g!"
-                set "current_dir=!current_dir:H:=/mnt/h!"
-                set "current_dir=!current_dir:I:=/mnt/i!"
-                set "current_dir=!current_dir:J:=/mnt/j!"
-                set "current_dir=!current_dir:K:=/mnt/k!"
-                set "current_dir=!current_dir:L:=/mnt/l!"
-                set "current_dir=!current_dir:M:=/mnt/m!"
-                set "current_dir=!current_dir:N:=/mnt/n!"
-                set "current_dir=!current_dir:O:=/mnt/o!"
-                set "current_dir=!current_dir:P:=/mnt/p!"
-                set "current_dir=!current_dir:Q:=/mnt/q!"
-                set "current_dir=!current_dir:R:=/mnt/r!"
-                set "current_dir=!current_dir:S:=/mnt/s!"
-                set "current_dir=!current_dir:T:=/mnt/t!"
-                set "current_dir=!current_dir:U:=/mnt/u!"
-                set "current_dir=!current_dir:V:=/mnt/v!"
-                set "current_dir=!current_dir:W:=/mnt/w!"
-                set "current_dir=!current_dir:X:=/mnt/x!"
-                set "current_dir=!current_dir:Y:=/mnt/y!"
-                set "current_dir=!current_dir:Z:=/mnt/z!"
-                
                 REM Convert backslashes to forward slashes in the filename
                 set "last_arg=!last_arg:\=/!"
                 
                 REM Combine current WSL directory with the filename
-                set "last_arg=!current_dir!/!last_arg!"
+                REM Convert current_dir to WSL format using wslpath
+                for /f "tokens=*" %%p in ('wsl -e wslpath "!current_dir!"') do set "current_dir_wsl=%%p"
+                set "current_dir_wsl=!current_dir_wsl:"=!"
+                
+                set "last_arg=!current_dir_wsl!/!last_arg!"
             )
         )
     ) else (
@@ -155,7 +117,8 @@ REM Call the WSL script with the converted arguments
 @REM )
 echo.
 
-wsl ~/openFPGALoaderWin/openFPGALoader.sh !final_args!
+REM Use wsl --cd to set the working directory and run the script from the batch file's location
+wsl --cd "!current_dir!" -d Ubuntu -e bash -c "!batch_dir!/openFPGALoader.sh !final_args!"
 
 REM Check the exit code from WSL
 @REM if %errorlevel% neq 0 (
