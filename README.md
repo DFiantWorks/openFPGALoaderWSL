@@ -153,37 +153,6 @@ To see detailed output, you can run the WSL script directly:
 ~/openFPGALoader.sh -v -b arty-a7-35t /mnt/c/path/to/bitstream.bit
 ```
 
-### Manual USB Device Management
-
-If automatic management fails, you can manually manage the USB device:
-
-```powershell
-# In Windows PowerShell (as Administrator)
-usbipd list
-usbipd bind --busid 2-5
-usbipd attach --wsl --busid 2-5
-```
-
-```bash
-# In WSL
-lsusb  # Verify device appears
-openFPGALoader -b arty-a7-35t /mnt/c/path/to/bitstream.bit
-```
-
-```powershell
-# In Windows PowerShell (as Administrator)
-usbipd detach --busid 2-5
-```
-
-## Configuration
-
-You can modify the following variables in `openFPGALoader.sh`:
-
-- `DIGILENT_VID`: Vendor ID (default: "0403")
-- `DIGILENT_PID`: Product ID (default: "6010")
-- `DIGILENT_DEVICE_NAME`: Device name to search for (default: "Digilent USB Device")
-- `MAX_WAIT_TIME`: Maximum time to wait for device in seconds (default: 30)
-
 ## Contributing
 
 Feel free to submit issues and enhancement requests!
