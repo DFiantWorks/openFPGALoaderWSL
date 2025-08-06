@@ -6,8 +6,8 @@ REM This script converts Windows file paths to WSL paths and calls the WSL scrip
 
 REM Check if arguments are provided
 if "%~1"=="" (
-    echo Usage: openFPGALoader.bat [openFPGALoader arguments...]
-    echo Example: openFPGALoader.bat -b arty-a7-35t my_bitstream.bit
+    echo Usage: openFPGALoaderWSL.bat [openFPGALoader arguments...]
+    echo Example: openFPGALoaderWSL.bat -b arty-a7-35t my_bitstream.bit
     exit /b 1
 )
 
@@ -106,24 +106,5 @@ if defined args (
     set "final_args=!last_arg!"
 )
 
-REM Call the WSL script with the converted arguments
-@REM if "!is_file_path!"=="true" (
-@REM     echo Converting Windows path to WSL path...
-@REM     echo Original last argument: %last_arg%
-@REM     echo Converted last argument: !last_arg!
-@REM ) else (
-@REM     echo Last argument does not appear to be a file path, passing as-is...
-@REM     echo Last argument: !last_arg!
-@REM )
-echo.
-
 REM Use wsl --cd to set the working directory and run the script from the batch file's location
-wsl --cd "!current_dir!" -d Ubuntu -e bash -c "!batch_dir!/openFPGALoader.sh !final_args!"
-
-REM Check the exit code from WSL
-@REM if %errorlevel% neq 0 (
-@REM     echo Error: openFPGALoader failed with exit code %errorlevel%
-@REM     exit /b %errorlevel%
-@REM )
-
-@REM echo openFPGALoader completed successfully. 
+wsl --cd "!current_dir!" -d Ubuntu -e bash -c "!batch_dir!/openFPGALoaderWSL.sh !final_args!"
