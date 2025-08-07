@@ -1,14 +1,25 @@
 # openFPGALoader Windows/WSL Wrapper
 
-This project provides Windows and WSL wrapper scripts for [openFPGALoader](https://github.com/trabucayre/openFPGALoader) that automatically handle USB device attachment/detachment for Digilent FPGA programming devices.
+This project provides Windows and [WSL](https://learn.microsoft.com/en-us/windows/wsl/install) wrapper scripts for [openFPGALoader](https://github.com/trabucayre/openFPGALoader) that automatically handle USB device attachment and detachment for FPGA USB programming devices (cables).
+
+## Why is this needed?
+
+openFPGALoader cannot work with standard Windows drivers because it's based on libusb. An alternative approach is to install openFPGALoader under [MSYS2](https://www.msys2.org/) and use [Zadig](https://zadig.akeo.ie/) to replace the standard drivers with WinUSB drivers. While this enables openFPGALoader to work, it breaks commercial tool support that relies on the standard drivers (e.g., Vivado Hardware Manager). If you're only programming FPGAs or their flash devices, this may not be an issue. However, if you want to use integrated logic analyzers that commercial tools provide, this method prevents you from doing so.
+
+## openFPGALoaderWSL to the rescue!
+
+The openFPGALoaderWSL script solves this problem by utilizing a simple WSL openFPGALoader installation and the [USBIPD-WIN project](https://learn.microsoft.com/en-us/windows/wsl/connect-usb#install-the-usbipd-win-project). After installation, simply call `openFPGALoaderWSL` with the same arguments as `openFPGALoader`, and everything is handled automatically for you.
+
+In the following demo, you can see how Vivado Hardware Manager is temporarily disconnected from the programming cable while running `openFPGALoaderWSL`, and afterward it's perfectly able to use the programming cable as usual.
+
+![Vivado Hardware Manager working alongside openFPGALoader](VivadoPlusLoader.gif)
 
 ## Features
 
-- **Automatic USB Device Management**: Automatically detects, binds, and attaches Digilent USB devices to WSL
-- **Path Conversion**: Converts Windows file paths to WSL paths automatically
-- **Error Handling**: Comprehensive error handling and cleanup
-- **Colored Output**: Clear status messages with color coding
+- **Use openFPGALoader Alongside Commercial Tools Under Windows**: No longer need to choose between the speed and productivity of openFPGALoader and the full features of commercial tools. You can have both!
+- **Automatic USB Device Management**: Automatically detects and attaches USB programming devices to WSL
 - **Cross-Platform**: Works seamlessly between Windows and WSL2
+- **Error Handling**: Comprehensive error handling and cleanup
 
 ## Prerequisites
 
@@ -22,20 +33,44 @@ This project provides Windows and WSL wrapper scripts for [openFPGALoader](https
 
 1. **Linux distribution** (Ubuntu recommended)
 2. **openFPGALoader** installed in WSL
-3. **lsusb** command available
 
 ## Installation
 
-### 1. Install usbipd-win on Windows
+### In Windows
 
-Follow the [Microsoft guide](https://learn.microsoft.com/en-us/windows/wsl/connect-usb#install-the-usbipd-win-project) or use winget:
-
-```powershell
-winget install --interactive --exact dorssel.usbipd-win
+#### A. Install or update WSL2:
+1. Open an *elevated* command prompt or PowerShell
+2. To install (skip if already installed):
+```cmd
+wsl --install
+```
+3. To update (skip for fresh install):
+```cmd
+wsl --update
 ```
 
-### 2. Install openFPGALoader in WSL
+#### B. Install or update usbipd-win:
+1. Open an *elevated* command prompt or PowerShell
+2. To install (skip if already installed):
+```cmd
+winget install --exact dorssel.usbipd-win
+```
+3. To update (skip for fresh install):
+```cmd
+winget update --exact dorssel.usbipd-win
+```
 
+#### C. Clone this repository:
+1. Open a *user-level* command prompt or PowerShell
+2. Navigate to where you want to install openFPGALoaderWSL and run (this will create a folder named `openFPGALoaderWSL`):
+```cmd
+git clone https://github.com/DFiantWorks/openFPGALoaderWSL
+```
+3. Add the created folder to the Windows `PATH` environment variable.
+
+### In WSL
+
+#### 1. Install openFPGALoader
 ```bash
 # Ubuntu/Debian
 sudo apt update
@@ -50,119 +85,66 @@ make -j$(nproc)
 sudo make install
 ```
 
-### 3. Copy Scripts to WSL
-
-Copy the `openFPGALoader.sh` script to your WSL home directory:
-
-```bash
-# From Windows, copy the script to WSL
-copy openFPGALoader.sh %USERPROFILE%\AppData\Local\Packages\CanonicalGroupLimited.Ubuntu_79rhkp1fndgsc\LocalState\rootfs\home\YOUR_WSL_USERNAME\
-```
-
-Or manually copy the script content to `~/openFPGALoader.sh` in WSL.
-
-Make the script executable:
-
-```bash
-chmod +x ~/openFPGALoader.sh
-```
-
-### 4. Copy Windows Script
-
-Copy `openFPGALoader.bat` to a directory in your Windows PATH or use it from the current directory.
+#### 2. (Optional) Add openFPGALoaderWSL to your WSL `PATH`
+If you only intend to run openFPGALoaderWSL from Windows, this step is not necessary. However, if you intend to call it directly within WSL, add the Windows mounted folder of openFPGALoaderWSL to the WSL path. For example, `/mnt/c/Users/Gizmo/openFPGALoaderWSL` is the path you would add.
 
 ## Usage
 
-### Basic Usage
+### Bind Cable Device (Once per cable)
 
+For the first time with every different programming cable, you must first bind (share) the cable in an *elevated* PowerShell console. When you run `openFPGALoaderWSL`, it will detect cables that are not shared and print an error like this:
+
+```
+[ERROR] Cable (Bus ID: 2-1) is not shared and needs to be bound first
+[ERROR] Please run the following command in an elevated (admin) PowerShell console:
+[ERROR]   usbipd bind --busid 2-1
+[ERROR] Then retry running openFPGALoaderWSL.
+```
+
+All you need to do is execute the `usbipd bind` command with the `busid` provided in the error message.
+
+Here is a demo of this entire process:
+
+![Powershell bind demo](PowershellBind.gif)
+
+### Basic Usage
 ```cmd
 # Program to SRAM (volatile)
-openFPGALoader.bat -b arty-a7-35t C:\path\to\your\bitstream.bit
+openFPGALoaderWSL -b nexys_a7_100 C:\path\to\your\bitstream.bit
 
 # Program to flash (persistent)
-openFPGALoader.bat -b arty-a7-35t -f C:\path\to\your\bitstream.bit
-
-# Use specific cable
-openFPGALoader.bat -c digilent C:\path\to\your\bitstream.bit
+openFPGALoaderWSL -b nexys_a7_100 -f C:\path\to\your\bitstream.mcs
 ```
 
-### Advanced Usage
-
-```cmd
-# List supported boards
-openFPGALoader.bat --list-boards
-
-# List supported cables
-openFPGALoader.bat --list-cables
-
-# Verbose output
-openFPGALoader.bat -v -b arty-a7-35t C:\path\to\your\bitstream.bit
-```
+For more help, visit https://trabucayre.github.io/openFPGALoader
 
 ## How It Works
 
-1. **Windows Script (`openFPGALoader.bat`)**:
+1. **Windows Script (`openFPGALoaderWSL.bat`)**:
    - Converts Windows file paths to WSL paths
    - Calls the WSL script with converted arguments
    - Handles error reporting
 
-2. **WSL Script (`openFPGALoader.sh`)**:
-   - Detects Digilent USB device using `usbipd list`
-   - Binds the device with `usbipd bind`
-   - Attaches device to WSL with `usbipd attach`
-   - Waits for device to appear in WSL using `lsusb`
+2. **WSL Script (`openFPGALoaderWSL.sh`)**:
+   - Detects FPGA programming cable USB devices using `usbipd list`
+   - Attaches devices that appear in `cables.list` to WSL with `usbipd attach`
    - Runs `openFPGALoader` with provided arguments
-   - Detaches device when complete
+   - Detaches devices when complete
 
 ## Supported Devices
 
-This wrapper is specifically designed for **Digilent USB devices** with VID:PID `0403:6010`. The script automatically detects devices with the name "Digilent USB Device".
-
-## Troubleshooting
-
-### Common Issues
-
-1. **"usbipd command not found"**
-   - Install usbipd-win on Windows
-   - Ensure it's added to PATH
-
-2. **"Digilent USB device not found"**
-   - Check if device is connected
-   - Verify device appears in `usbipd list` output
-   - Ensure device name matches "Digilent USB Device"
-
-3. **"openFPGALoader not found in WSL"**
-   - Install openFPGALoader in WSL
-   - Verify installation with `which openFPGALoader`
-
-4. **"Device did not appear in WSL"**
-   - Check WSL kernel version (requires 5.10.60.1 or higher)
-   - Update WSL: `wsl --update`
-   - Restart WSL: `wsl --shutdown`
-
-5. **Permission denied errors**
-   - Run Windows script as Administrator
-   - Check udev rules in WSL for USB device access
-
-### Debug Mode
-
-To see detailed output, you can run the WSL script directly:
-
-```bash
-# In WSL
-~/openFPGALoader.sh -v -b arty-a7-35t /mnt/c/path/to/bitstream.bit
-```
+Basically, all devices with known VID:PID numbers that are supported by openFPGALoader are supported by this script and appear in the `cables.list` file.
 
 ## Contributing
 
 Feel free to submit issues and enhancement requests!
 
-## License
-
-This project is licensed under the same license as openFPGALoader.
-
 ## References
 
 - [openFPGALoader Documentation](https://trabucayre.github.io/openFPGALoader/)
+- [openFPGALoader GitHub Repository](https://github.com/trabucayre/openFPGALoader)
+- [Microsoft WSL Installation Guide](https://learn.microsoft.com/en-us/windows/wsl/install)
 - [Microsoft WSL USB Device Guide](https://learn.microsoft.com/en-us/windows/wsl/connect-usb)
-- [usbipd-win Project](https://github.com/dorssel/usbipd-win) 
+- [MSYS2](https://www.msys2.org/)
+- [Zadig USB Driver Installation Tool](https://zadig.akeo.ie/)
+- [usbipd-win Project](https://github.com/dorssel/usbipd-win)
