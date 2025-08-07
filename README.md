@@ -59,6 +59,66 @@ winget install --exact dorssel.usbipd-win
 ```cmd
 winget update --exact dorssel.usbipd-win
 ```
+4. Add device policy for your expected cables:
+This allows you to preemptively set an autobind (share) policy without attaching the cables.
+Alternatively, you can skip over this step and specifically add the cable you actively use when you later get an error message (see [Bind Cable Device](#bind-cable-device-once-per-cable) section below).
+```powershell
+# FTDI devices (common USB-to-serial bridges)
+usbipd policy add -e Allow -o AutoBind -i 0403:6001  # FTDI FT232R UART
+usbipd policy add -e Allow -o AutoBind -i 0403:6010  # FTDI FT2232H Dual UART/FIFO
+usbipd policy add -e Allow -o AutoBind -i 0403:6011  # FTDI FT4232H Quad UART
+usbipd policy add -e Allow -o AutoBind -i 0403:6014  # FTDI FT232H Single UART/FIFO
+usbipd policy add -e Allow -o AutoBind -i 0403:6015  # FTDI FT231X UART
+usbipd policy add -e Allow -o AutoBind -i 0403:6043  # FTDI FT232H Single UART/FIFO (alternative)
+
+# Altera/Intel programming cables
+usbipd policy add -e Allow -o AutoBind -i 0547:1002  # Altera USB-Blaster
+usbipd policy add -e Allow -o AutoBind -i 09fb:6001  # Altera USB-Blaster
+usbipd policy add -e Allow -o AutoBind -i 09fb:6002  # Altera USB-Blaster II
+usbipd policy add -e Allow -o AutoBind -i 09fb:6003  # Altera USB-Blaster II
+usbipd policy add -e Allow -o AutoBind -i 09fb:6010  # Altera USB-Blaster II
+usbipd policy add -e Allow -o AutoBind -i 09fb:6810  # Altera USB-Blaster II
+
+# ARM CMSIS-DAP devices
+usbipd policy add -e Allow -o AutoBind -i 0d28:0204  # ARM CMSIS-DAP v1
+
+# OpenMoko devices
+usbipd policy add -e Allow -o AutoBind -i 1209:3442  # OpenMoko Debug Board
+usbipd policy add -e Allow -o AutoBind -i 1209:3443  # OpenMoko Debug Board
+usbipd policy add -e Allow -o AutoBind -i 1209:c0ca  # OpenMoko Debug Board
+
+# Xilinx programming cables
+usbipd policy add -e Allow -o AutoBind -i 1366:0101  # Xilinx Platform Cable USB II
+usbipd policy add -e Allow -o AutoBind -i 1366:0105  # Xilinx Platform Cable USB II
+usbipd policy add -e Allow -o AutoBind -i 1366:1020  # Xilinx Platform Cable USB II
+
+# Digilent programming cables
+usbipd policy add -e Allow -o AutoBind -i 15ba:002a  # Digilent JTAG-HS2
+usbipd policy add -e Allow -o AutoBind -i 15ba:002b  # Digilent JTAG-HS2
+
+# CH552/CH554 microcontrollers
+usbipd policy add -e Allow -o AutoBind -i 1a86:55dd  # CH552/CH554 device
+
+# OpenOCD compatible devices
+usbipd policy add -e Allow -o AutoBind -i 1d50:6146  # OpenOCD compatible device
+usbipd policy add -e Allow -o AutoBind -i 1d50:614b  # OpenOCD compatible device
+
+# NXP LPC devices
+usbipd policy add -e Allow -o AutoBind -i 1fc9:0090  # NXP LPC device
+
+# Espressif devices
+usbipd policy add -e Allow -o AutoBind -i 2a19:1005  # Espressif ESP32/ESP8266
+usbipd policy add -e Allow -o AutoBind -i 2a19:1009  # Espressif ESP32/ESP8266
+
+# Espressif devices (alternative VID)
+usbipd policy add -e Allow -o AutoBind -i 303a:1001  # Espressif ESP32/ESP8266
+
+# Silicon Labs devices
+usbipd policy add -e Allow -o AutoBind -i 336c:1002  # Silicon Labs device
+
+# Microchip devices
+usbipd policy add -e Allow -o AutoBind -i 33aa:0120  # Microchip device
+```
 
 #### C. Clone this repository:
 1. Open a *user-level* command prompt or PowerShell
@@ -91,6 +151,8 @@ If you only intend to run openFPGALoaderWSL from Windows, this step is not neces
 ## Usage
 
 ### Bind Cable Device (Once per cable)
+
+**Note**: If you already set up device policies during installation (see [Installation](#installation) section above), you can skip this step as cables will be automatically bound when connected.
 
 For the first time with every different programming cable, you must first bind (share) the cable in an *elevated* PowerShell console. When you run `openFPGALoaderWSL`, it will detect cables that are not shared and print an error like this:
 
