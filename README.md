@@ -187,7 +187,7 @@ For more help, visit https://trabucayre.github.io/openFPGALoader
    - Calls the WSL script with converted arguments
    - Handles error reporting
 
-2. **WSL Script (`openFPGALoaderWSL.sh`)**:
+2. **WSL Script (`openFPGALoaderWSL`)**:
    - Detects FPGA programming cable USB devices using `usbipd list`
    - Attaches devices that appear in `cables.list` to WSL with `usbipd attach`
    - Runs `openFPGALoader` with provided arguments
