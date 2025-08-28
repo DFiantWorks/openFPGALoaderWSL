@@ -123,4 +123,4 @@ if defined args (
 )
 
 REM Use wsl --cd to set the working directory and run the script from the batch file's location
-wsl --cd "!current_dir!" -d Ubuntu -e bash -c "!batch_dir!/openFPGALoaderWSL.sh !final_args!"
+wsl --cd "!current_dir!" -d Ubuntu -e bash -c "!batch_dir!/openFPGALoaderWSL !final_args!"
