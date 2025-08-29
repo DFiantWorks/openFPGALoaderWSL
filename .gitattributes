@@ -1,2 +1,2 @@
 # Ensure shell scripts are executable when cloned
-*.sh text eol=lf executable 
+openFPGALoaderWSL text eol=lf executable 
